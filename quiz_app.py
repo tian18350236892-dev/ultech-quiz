@@ -4,7 +4,7 @@ import random
 # --- 1. 页面基础配置 ---
 st.set_page_config(page_title="Ultech Master Training", page_icon="📱", layout="wide")
 
-# --- 2. CSS 美化样式 (优化版) ---
+# --- 2. CSS 美化样式 ---
 st.markdown("""
 <style>
     .big-font { font-size:18px !important; font-weight: 500; }
@@ -16,7 +16,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 题库 1：普通版 (Standard - 基础 S.O.P)
+# 题库 1：普通版 (Standard)
 # ==========================================
 STANDARD_QUESTIONS = [
     {
@@ -86,21 +86,33 @@ STANDARD_QUESTIONS = [
         "explanation": "Sales Manual: Slow customers need confidence, not pressure."
     },
     {
-        "question": "Intake: When is a deposit mandatory?",
-        "options": ["Always", "Overseas parts / High value / Device not left", "Never", "Cash only"],
-        "answer": "Overseas parts / High value / Device not left",
-        "explanation": "Intake SOP 5.1: Deposit secures the part."
+        "question": "Intake: What are the two things you MUST confirm first?",
+        "options": ["Price and Payment", "Model and Timeline", "Name and Email", "Password"],
+        "answer": "Model and Timeline",
+        "explanation": "Intake SOP: Confirm model & timeline first."
     },
     {
         "question": "Sales: What is the best selling point for an 'Office Worker'?",
         "options": ["Sparkly", "Heavy duty", "Slim and simple", "Waterproof"],
         "answer": "Slim and simple",
         "explanation": "Appendix A5: Emphasize 'slim and simple' so it doesn't feel bulky."
+    },
+    {
+        "question": "Intake: When is a deposit mandatory?",
+        "options": ["Always", "Overseas parts / High value / Device not left", "Never", "Cash only"],
+        "answer": "Overseas parts / High value / Device not left",
+        "explanation": "Intake SOP 5.1: Deposit secures the part."
+    },
+    {
+        "question": "Delivery: What is the warranty on a Battery?",
+        "options": ["1 year", "3 months", "6 months", "No warranty"],
+        "answer": "3 months",
+        "explanation": "Delivery SOP: Battery and other parts have a 3-month warranty."
     }
 ]
 
 # ==========================================
-# 题库 2：进阶版 (Advanced - 场景与话术填空)
+# 题库 2：进阶版 (Advanced)
 # ==========================================
 ADVANCED_QUESTIONS = [
     {
@@ -205,11 +217,11 @@ def init_game(mode):
     st.session_state.q_index = 0
     st.session_state.answered = False
     st.session_state.user_choice = None
-    st.session_state.finished = False
+    st.session_state.current_q_options = None # 修复 Bug: 确保选项顺序在提交时不变
     
     # 题库选择
     if mode == "Standard":
-        # 如果题库不够10道，则复制以填充（防止随机抽取报错）
+        # 题库填充
         bank = STANDARD_QUESTIONS * 2 
     else:
         bank = ADVANCED_QUESTIONS * 2
@@ -224,6 +236,10 @@ def reset_game():
 # 初始化默认状态
 if "mode" not in st.session_state:
     init_game("Standard")
+
+# 关键修复: 如果没有当前题目的固定选项，则生成并保存
+if "current_q_options" not in st.session_state:
+    st.session_state.current_q_options = None
 
 # ==========================================
 # 4. 侧边栏布局 (Sidebar)
@@ -288,16 +304,23 @@ q = st.session_state.exam_questions[st.session_state.q_index]
 st.progress((st.session_state.q_index) / 10)
 st.markdown(f"#### Q{st.session_state.q_index + 1}: {q['question']}")
 
-# --- 答题交互区 ---
+# --- 答题交互区 (Bug Fixed) ---
 placeholder = st.empty()
+
+# 核心修复: 仅在第一次加载该题目时打乱选项，并存入 session_state
+if st.session_state.current_q_options is None:
+    opts = q['options'].copy()
+    random.shuffle(opts)
+    st.session_state.current_q_options = opts
+
+# 使用锁定的选项列表
+current_options = st.session_state.current_q_options
 
 # 如果还没回答，显示表单
 if not st.session_state.answered:
     with placeholder.form(key=f"form_{st.session_state.q_index}"):
-        opts = q['options'].copy()
-        random.shuffle(opts) # 选项随机排列，防止背答案
         
-        choice = st.radio("Select Answer:", opts, index=None)
+        choice = st.radio("Select Answer:", current_options, index=None)
         submitted = st.form_submit_button("Submit")
         
         if submitted:
@@ -333,6 +356,8 @@ else:
         st.session_state.q_index += 1
         st.session_state.answered = False
         st.session_state.user_choice = None
+        st.session_state.current_q_options = None # 清空选项缓存，为下一题做准备
+        
         # 清理临时状态
         if "health_deducted" in st.session_state: del st.session_state.health_deducted
         if "score_added" in st.session_state: del st.session_state.score_added
